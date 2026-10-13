@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fuzzy Traffic Signal | FOAI PBL</title>
+<style>
+  :root { --ink:#14181d; --paper:#f6f3ec; --card:#ffffff; --line:#ddd7c9; --amber:#e9a100; --red:#d2452f; --green:#23915a; --muted:#636a72; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--paper); color:#1c2127; font-family:"Segoe UI", Arial, sans-serif; }
+  header { background:var(--ink); color:#fff; padding:22px 16px; }
+  .wrap { max-width:1180px; margin:0 auto; }
+  header .kicker { font-size:12.5px; letter-spacing:2.5px; color:var(--amber); text-transform:uppercase; }
+  header h1 { margin:6px 0 4px; font-size:28px; font-weight:600; line-height:1.2; }
+  header p { margin:0; color:#aab1b9; font-size:15px; }
+  main { padding:18px 16px 40px; }
+  .grid { display:grid; grid-template-columns:minmax(0, 560px) minmax(0, 1fr); gap:18px; align-items:start; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px 18px; }
+  .card h2 { margin:0 0 10px; font-size:16px; font-weight:600; letter-spacing:.3px; }
+  canvas { display:block; max-width:100%; }
+  #road { width:100%; height:auto; border-radius:8px; }
+  .stack { display:flex; flex-direction:column; gap:18px; }
+  label { display:block; font-size:12.5px; color:var(--muted); margin-bottom:5px; text-transform:uppercase; letter-spacing:1px; }
+  .seg { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; }
+  .seg button { border:1px solid var(--line); background:#fff; padding:7px 12px; border-radius:20px; font:inherit; font-size:14px; cursor:pointer; color:#1c2127; }
+  .seg button.on { background:var(--ink); color:#fff; border-color:var(--ink); }
+  .seg button:focus-visible, .btn:focus-visible { outline:3px solid var(--amber); outline-offset:2px; }
+  .btn { border:0; background:var(--amber); color:var(--ink); font:inherit; font-weight:600; padding:9px 16px; border-radius:8px; cursor:pointer; }
+  .btn.ghost { background:#efeadd; }
+  .rowb { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  input[type=range] { width:100%; accent-color:var(--amber); }
+  .tiles { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:10px; }
+  .tile { border:1px solid var(--line); border-radius:8px; padding:10px 12px; background:#fbfaf6; }
+  .tile b { display:block; font-size:24px; font-variant-numeric:tabular-nums; line-height:1.1; }
+  .tile span { font-size:12px; color:var(--muted); }
+  .decision { font-size:14.5px; line-height:1.5; }
+  .decision .big { font-size:20px; font-weight:600; }
+  .bar { height:9px; background:#efeadd; border-radius:5px; overflow:hidden; margin:3px 0 8px; }
+  .bar i { display:block; height:100%; width:0; transition:width .15s; }
+  table { border-collapse:collapse; width:100%; font-size:14px; }
+  th { text-align:left; background:var(--ink); color:#fff; padding:8px 10px; font-weight:600; }
+  td { padding:8px 10px; border-top:1px solid var(--line); font-variant-numeric:tabular-nums; }
+  tr.best td { background:#fff7df; font-weight:600; }
+  .note { font-size:13px; color:var(--muted); margin:8px 0 0; line-height:1.45; }
+  .two { display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); gap:18px; margin-top:18px; }
+  footer { text-align:center; font-size:13px; color:var(--muted); padding:0 16px 28px; }
+  @media (max-width: 900px) { .grid, .two { grid-template-columns:minmax(0, 1fr); } .tiles { grid-template-columns:repeat(2, minmax(0, 1fr)); } header h1 { font-size:22px; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="kicker">Foundations of AI | Project Based Learning</div>
+    <h1>Intelligent Traffic Signal Control Using Fuzzy Logic and Optimization</h1>
+    <p>Live prototype. Pick a controller, pick the traffic, and watch how the queues behave.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="grid">
+    <div class="card">
+      <canvas id="road" width="1120" height="1120" aria-label="Animated four-way intersection"></canvas>
+      <p class="note" id="clock">Simulated time 00:00 of 60:00</p>
+    </div>
+
+    <div class="stack">
+      <div class="card">
+        <h2>Controls</h2>
+        <label>Controller</label>
+        <div class="seg" id="ctrl"></div>
+        <label>Traffic scenario</label>
+        <div class="seg" id="scen"></div>
+        <label for="speed">Speed: <span id="speedv">20</span> simulated seconds per second</label>
+        <input type="range" id="speed" min="1" max="200" value="20">
+        <div class="rowb" style="margin-top:12px;">
+          <button class="btn" id="play">Pause</button>
+          <button class="btn ghost" id="restart">Restart</button>
+          <button class="btn ghost" id="newseed">New traffic</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Live metrics</h2>
+        <div class="tiles">
+          <div class="tile"><b id="m-wait">0.0</b><span>avg wait (s)</span></div>
+          <div class="tile"><b id="m-queue">0</b><span>waiting now</span></div>
+          <div class="tile"><b id="m-max">0</b><span>longest queue</span></div>
+          <div class="tile"><b id="m-out">0</b><span>vehicles cleared</span></div>
+        </div>
+        <canvas id="spark" width="1000" height="220" style="width:100%;height:110px;margin-top:12px;" aria-label="Total queue over time"></canvas>
+        <p class="note">Total vehicles waiting over the last 10 simulated minutes.</p>
+      </div>
+
+      <div class="card">
+        <h2>What the controller is thinking</h2>
+        <div class="decision" id="decision"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="two">
+    <div class="card">
+      <h2>One-hour benchmark on this scenario</h2>
+      <div class="rowb"><button class="btn" id="bench">Run all four controllers</button><span class="note" style="margin:0;">10 traffic seeds each, same traffic for every controller</span></div>
+      <canvas id="benchc" width="1000" height="420" style="width:100%;height:210px;margin-top:12px;" aria-label="Benchmark bar chart"></canvas>
+      <table id="bencht"></table>
+    </div>
+    <div class="card">
+      <h2>Membership functions in use</h2>
+      <canvas id="mf" width="1000" height="560" style="width:100%;height:280px;" aria-label="Membership functions"></canvas>
+      <p class="note">Grey dashed lines are my hand-set shapes. Orange lines are the shapes found by the Genetic Algorithm. Fixed-time controllers do not use them.</p>
+    </div>
+  </div>
+</main>
+
+<footer>Mohammed Amaan Khan | 25WU0101075 | B.Tech CSE, Woxsen University | Guided by Dr. Bhargav Prajwal Pathri</footer>
+
+<script src="data.js"></script>
+<script src="sim.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
